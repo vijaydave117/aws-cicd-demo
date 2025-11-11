@@ -8,7 +8,7 @@ env:
   AWS_REGION: ap-south-1
   ECR_REPOSITORY: cicd-demo-backend
   ECS_CLUSTER: cicd-demo-cluster
-  ECS_SERVICE: cicd-demo-service
+  ECS_SERVICE: cicd-demo-task-service-ryns0yn1
   IMAGE_TAG: latest
 
 jobs:

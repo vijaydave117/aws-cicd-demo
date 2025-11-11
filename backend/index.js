@@ -3,7 +3,7 @@ const express = require("express");
 const app = express();
 
 app.get("/", (req, res) => {
-  res.send("✅✅ AWS Backend CI/CD Test Successful!");
+  res.send("✅ AWS Backend CI/CD Test Successful!");
 });
 
 const port = process.env.PORT || 8080;
