@@ -76,7 +76,11 @@ jobs:
       - name: Update ECS Service
         run: |
           echo "🚀 Updating ECS service..."
+          NEW_TASK_DEF_ARN=$(aws ecs describe-task-definition --task-definition cicd-demo-task --query 'taskDefinition.taskDefinitionArn' --output text)
+              echo "✅ Latest Task Definition ARN: $NEW_TASK_DEF_ARN"
+          
           aws ecs update-service \
             --cluster ${{ env.ECS_CLUSTER }} \
             --service ${{ env.ECS_SERVICE }} \
+            --task-definition $NEW_TASK_DEF_ARN \
             --force-new-deployment
