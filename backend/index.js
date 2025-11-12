@@ -3,7 +3,7 @@ const express = require("express");
 const app = express();
 
 app.get("/", (req, res) => {
-  res.send("Backend CICD pipeline is workng fine NOW!");
+  res.send("Backend CICD pipeline is workng fine Now!");
 });
 
 app.get("/", (req, res) => res.status(200).send("OK")); 

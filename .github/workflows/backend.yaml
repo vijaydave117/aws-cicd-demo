@@ -16,14 +16,12 @@ jobs:
     runs-on: ubuntu-latest
     environment:
       name: production
-      url: https://nexcod.narad.io   # optional
+      url: https://nexcod.narad.io
 
     steps:
-      # 1️⃣ Checkout repo
       - name: Checkout code
         uses: actions/checkout@v4
 
-      # 2️⃣ Configure AWS credentials
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
         with:
@@ -31,36 +29,32 @@ jobs:
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: ${{ env.AWS_REGION }}
 
-      # 3️⃣ Login to Amazon ECR
       - name: Login to Amazon ECR
         id: login-ecr
         uses: aws-actions/amazon-ecr-login@v2
 
-      # 4️⃣ Build and Push Docker Image to ECR
       - name: Build and Push Docker Image
         env:
           ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
           IMAGE_TAG: ${{ github.sha }}
         run: |
-          echo "🛠️ Building image with tag: $IMAGE_TAG"
-          docker build -t $ECR_REGISTRY/${{ env.ECR_REPOSITORY }}:$IMAGE_TAG backend/
-          docker push $ECR_REGISTRY/${{ env.ECR_REPOSITORY }}:$IMAGE_TAG
-          echo "IMAGE_URI=$ECR_REGISTRY/${{ env.ECR_REPOSITORY }}:$IMAGE_TAG" >> $GITHUB_ENV
+          IMAGE_URI=$ECR_REGISTRY/${{ env.ECR_REPOSITORY }}:$IMAGE_TAG
+          echo "🛠️ Building image: $IMAGE_URI"
+          docker build -t $IMAGE_URI backend/
+          docker push $IMAGE_URI
+          echo "IMAGE_URI=$IMAGE_URI" >> $GITHUB_ENV
 
-      # 5️⃣ Register new ECS Task Definition revision
       - name: Register new ECS task definition revision
         run: |
           echo "🧩 Using image URI: $IMAGE_URI"
           if [ -z "$IMAGE_URI" ]; then
-            echo "❌ IMAGE_URI is empty. Please check previous step for ECR push output."
+            echo "❌ IMAGE_URI is empty — stopping"
             exit 1
           fi
 
-          # Get current task definition JSON
           aws ecs describe-task-definition --task-definition cicd-demo-task \
             --query 'taskDefinition' > task-def.json
 
-          # Replace the image URI in container definitions
           cat task-def.json | jq --arg IMAGE "$IMAGE_URI" '
             .containerDefinitions[0].image = $IMAGE
             | {
@@ -74,16 +68,14 @@ jobs:
               }
           ' > new-task-def.json
 
-          echo "✅ Clean new task definition generated:"
+          echo "✅ Generated new task definition with image:"
           cat new-task-def.json | grep image
 
-          # Register new revision
           aws ecs register-task-definition --cli-input-json file://new-task-def.json
 
-      # 6️⃣ Update ECS Service to deploy new revision
       - name: Update ECS Service
         run: |
-          echo "🚀 Updating ECS service to deploy latest revision..."
+          echo "🚀 Updating ECS service..."
           aws ecs update-service \
             --cluster ${{ env.ECS_CLUSTER }} \
             --service ${{ env.ECS_SERVICE }} \
