@@ -35,26 +35,23 @@ jobs:
           docker push $ECR_REGISTRY/${{ env.ECR_REPOSITORY }}:${{ env.IMAGE_TAG }}
       - name: Register new ECS task definition revision
         run: |
-          TASK_DEF=$(aws ecs describe-task-definition --task-definition cicd-demo-task)
-          echo "$TASK_DEF" | jq --arg IMAGE "$IMAGE_URI" '
-            .taskDefinition
-            | .containerDefinitions[0].image=$IMAGE
-            | {
-                family,
-                containerDefinitions,
-                requiresCompatibilities,
-                networkMode,
-                cpu,
-                memory,
-                executionRoleArn,
-                taskRoleArn: (.taskRoleArn // empty)
-              }
+          aws ecs describe-task-definition --task-definition cicd-demo-task \
+          --query 'taskDefinition' > task-def.json
+          cat task-def.json | jq --arg IMAGE "$IMAGE_URI" '
+          .containerDefinitions[0].image = $IMAGE
+          | {
+              family: .family,
+              networkMode: .networkMode,
+              containerDefinitions: .containerDefinitions,
+              requiresCompatibilities: .requiresCompatibilities,
+              cpu: .cpu,
+              memory: .memory,
+              executionRoleArn: .executionRoleArn
+            }
           ' > new-task-def.json
-
-          echo "Registering new ECS task definition revision..."
+          echo "✅ Clean new task definition generated:"
           cat new-task-def.json
           aws ecs register-task-definition --cli-input-json file://new-task-def.json
-
       - name: Update ECS Service
         run: |
           aws ecs update-service \
