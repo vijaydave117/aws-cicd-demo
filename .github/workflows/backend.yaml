@@ -36,23 +36,25 @@ jobs:
       - name: Register new ECS task definition revision
         run: |
           TASK_DEF=$(aws ecs describe-task-definition --task-definition cicd-demo-task)
-          echo "$TASK_DEF" \
-            | jq --arg IMAGE "$IMAGE_URI"
-              '.taskDefinition
-              | .containerDefinitions[0].image=$IMAGE
-              | {
-              family,
-              containerDefinitions,
-              requiresCompatibilities,
-              networkMode,
-              cpu,
-              memory,
-              executionRoleArn,
-              taskRoleArn: (.taskRoleArn // empty)
-              }'
-            > new-task-def.json
+          echo "$TASK_DEF" | jq --arg IMAGE "$IMAGE_URI" '
+            .taskDefinition
+            | .containerDefinitions[0].image=$IMAGE
+            | {
+                family,
+                containerDefinitions,
+                requiresCompatibilities,
+                networkMode,
+                cpu,
+                memory,
+                executionRoleArn,
+                taskRoleArn: (.taskRoleArn // empty)
+              }
+          ' > new-task-def.json
+
           echo "Registering new ECS task definition revision..."
+          cat new-task-def.json
           aws ecs register-task-definition --cli-input-json file://new-task-def.json
+
       - name: Update ECS Service
         run: |
           aws ecs update-service \
