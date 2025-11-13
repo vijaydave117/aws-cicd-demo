@@ -42,7 +42,7 @@ jobs:
           echo "IMAGE_URI=$IMAGE_URI" >> $GITHUB_ENV
 
           echo "🛠️ Building image: $IMAGE_URI"
-          docker build -t $IMAGE_URI ./backend
+          docker build --no-cache -t $IMAGE_URI ./backend
 
           echo "⬆️ Pushing image..."
           docker push $IMAGE_URI
