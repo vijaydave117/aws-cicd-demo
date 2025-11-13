@@ -39,18 +39,21 @@ jobs:
           IMAGE_TAG: ${{ github.sha }}
         run: |
           IMAGE_URI=$ECR_REGISTRY/${{ env.ECR_REPOSITORY }}:$IMAGE_TAG
-          echo "🛠️ Building image: $IMAGE_URI"
-          docker build --no-cache -t $IMAGE_URI ./backend   # 👈 force rebuild, correct folder
-          docker push $IMAGE_URI
           echo "IMAGE_URI=$IMAGE_URI" >> $GITHUB_ENV
+
+          echo "🛠️ Building image: $IMAGE_URI"
+          docker build -t $IMAGE_URI ./backend
+
+          echo "⬆️ Pushing image..."
+          docker push $IMAGE_URI
+
+      - name: Inspect built image
+        run: |
+          docker run --rm $IMAGE_URI ls -R /app
 
       - name: Register new ECS task definition revision
         run: |
           echo "🧩 Using image URI: $IMAGE_URI"
-          if [ -z "$IMAGE_URI" ]; then
-            echo "❌ IMAGE_URI is empty — stopping"
-            exit 1
-          fi
 
           aws ecs describe-task-definition --task-definition cicd-demo-task \
             --query 'taskDefinition' > task-def.json
@@ -68,14 +71,11 @@ jobs:
               }
           ' > new-task-def.json
 
-          echo "✅ Generated new task definition with image:"
-          cat new-task-def.json | grep image
-
+          echo "Registering task definition..."
           aws ecs register-task-definition --cli-input-json file://new-task-def.json
 
       - name: Update ECS Service
         run: |
-          echo "🚀 Updating ECS service..."
           NEW_TASK_DEF_ARN=$(aws ecs describe-task-definition --task-definition cicd-demo-task --query 'taskDefinition.taskDefinitionArn' --output text)
               echo "✅ Latest Task Definition ARN: $NEW_TASK_DEF_ARN"
           

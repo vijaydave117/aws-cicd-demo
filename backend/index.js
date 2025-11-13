@@ -4,7 +4,7 @@ const app = express();
 
 // Root route — visible in browser
 app.get("/", (req, res) => {
-  res.send("🚀 Backend CI/CD pipeline is working fine! Version 9");
+  res.send("🚀 Backend CI/CD pipeline is working Now");
 });
 
 // Health check endpoints for ECS / ALB
