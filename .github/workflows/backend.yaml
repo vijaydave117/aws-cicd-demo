@@ -47,10 +47,6 @@ jobs:
           echo "⬆️ Pushing image..."
           docker push $IMAGE_URI
 
-      - name: Inspect built image
-        run: |
-          docker run --rm $IMAGE_URI ls -R /app
-
       - name: Register new ECS task definition revision
         run: |
           echo "🧩 Using image URI: $IMAGE_URI"
