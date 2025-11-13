@@ -14,9 +14,6 @@ env:
 jobs:
   deploy:
     runs-on: ubuntu-latest
-    environment:
-      name: production
-      url: https://nexcod.narad.io
 
     steps:
       - name: Checkout code
@@ -33,25 +30,23 @@ jobs:
         id: login-ecr
         uses: aws-actions/amazon-ecr-login@v2
 
-      - name: Build and Push Docker Image
-        env:
-          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
-          IMAGE_TAG: ${{ github.sha }}
+      - name: Build & Push Image (with unique tag)
         run: |
-          IMAGE_URI=$ECR_REGISTRY/${{ env.ECR_REPOSITORY }}:$IMAGE_TAG
+          IMAGE_TAG=${GITHUB_SHA}
+          IMAGE_URI="${{ steps.login-ecr.outputs.registry }}/${{ env.ECR_REPOSITORY }}:$IMAGE_TAG"
+
           echo "IMAGE_URI=$IMAGE_URI" >> $GITHUB_ENV
+          echo "TAG=$IMAGE_TAG" >> $GITHUB_ENV
 
-          echo "🛠️ Building image: $IMAGE_URI"
           docker build --no-cache -t $IMAGE_URI ./backend
-
-          echo "⬆️ Pushing image..."
           docker push $IMAGE_URI
 
-      - name: Register new ECS task definition revision
-        run: |
-          echo "🧩 Using image URI: $IMAGE_URI"
+          echo "Built and pushed: $IMAGE_URI"
 
-          aws ecs describe-task-definition --task-definition cicd-demo-task \
+      - name: Register new ECS task definition
+        run: |
+          aws ecs describe-task-definition \
+            --task-definition cicd-demo-task \
             --query 'taskDefinition' > task-def.json
 
           cat task-def.json | jq --arg IMAGE "$IMAGE_URI" '
@@ -70,13 +65,21 @@ jobs:
           echo "Registering task definition..."
           aws ecs register-task-definition --cli-input-json file://new-task-def.json
 
-      - name: Update ECS Service
+      - name: Update ECS service to new task
         run: |
-          NEW_TASK_DEF_ARN=$(aws ecs describe-task-definition --task-definition cicd-demo-task --query 'taskDefinition.taskDefinitionArn' --output text)
-              echo "✅ Latest Task Definition ARN: $NEW_TASK_DEF_ARN"
-          
+          NEW_TASK_DEF=$(aws ecs list-task-definitions \
+            --family-prefix cicd-demo-task \
+            --sort DESC \
+            --max-items 1 \
+            --query "taskDefinitionArns[0]" \
+            --output text)
+
+          echo "Using task definition: $NEW_TASK_DEF"
+
           aws ecs update-service \
             --cluster ${{ env.ECS_CLUSTER }} \
             --service ${{ env.ECS_SERVICE }} \
-            --task-definition $NEW_TASK_DEF_ARN \
+            --task-definition "$NEW_TASK_DEF" \
             --force-new-deployment
+
+          echo "Deployment triggered."
