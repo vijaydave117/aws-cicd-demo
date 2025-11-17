@@ -1,15 +1,14 @@
-// Simple Express backend for ECS CI/CD demo
 const express = require("express");
 const app = express();
 
-// Root route — visible in browser
 app.get("/", (req, res) => {
-  res.send("AWS Backend CI/CD pipeline is working Nowwwwww123456");
+  res.send("NEW UPDATE: Backend updated and working!");
 });
 
-// Health check endpoints for ECS / ALB
-app.get("/ok", (req, res) => res.status(200).send("OK"));
 app.get("/health", (req, res) => res.status(200).send("Healthy"));
+app.get("/ok", (req, res) => res.status(200).send("OK"));
 
-const port = process.env.PORT || 8080;
-app.listen(port, () => console.log(`✅ Server running on port ${port}`));
+const port = 8080;
+app.listen(port, "0.0.0.0", () => {
+  console.log("Server running on port", port);
+});
