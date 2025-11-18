@@ -8,8 +8,8 @@ on:
 env:
   AWS_REGION: ap-south-1
   ECR_REPOSITORY: cicd-demo-backend
-  ECS_CLUSTER: cicd-demo-cluster
-  ECS_SERVICE: cicd-demo-task-service-ryns0yn1
+  CODEDEPLOY_APPLICATION: cicd-demo-codedeploy-app
+  CODEDEPLOY_DEPLOYMENT_GROUP: cicd-demo-deployment-group
 
 jobs:
   deploy:
@@ -30,7 +30,7 @@ jobs:
         id: login-ecr
         uses: aws-actions/amazon-ecr-login@v2
 
-      - name: Build & Push Image (with unique tag)
+      - name: Build & Push Docker image
         run: |
           IMAGE_TAG=${GITHUB_SHA}
           IMAGE_URI="${{ steps.login-ecr.outputs.registry }}/${{ env.ECR_REPOSITORY }}:$IMAGE_TAG"
@@ -41,45 +41,27 @@ jobs:
           docker build --no-cache -t $IMAGE_URI ./backend
           docker push $IMAGE_URI
 
-          echo "Built and pushed: $IMAGE_URI"
-
-      - name: Register new ECS task definition
+      - name: Prepare task definition
         run: |
-          aws ecs describe-task-definition \
-            --task-definition cicd-demo-task \
-            --query 'taskDefinition' > task-def.json
+          sed "s|<IMAGE_PLACEHOLDER>|$IMAGE_URI|" taskdef.json > taskdef-final.json
 
-          cat task-def.json | jq --arg IMAGE "$IMAGE_URI" '
-            .containerDefinitions[0].image = $IMAGE
-            | {
-                family: .family,
-                networkMode: .networkMode,
-                containerDefinitions: .containerDefinitions,
-                requiresCompatibilities: .requiresCompatibilities,
-                cpu: .cpu,
-                memory: .memory,
-                executionRoleArn: .executionRoleArn
-              }
-          ' > new-task-def.json
-
-          echo "Registering task definition..."
-          aws ecs register-task-definition --cli-input-json file://new-task-def.json
-
-      - name: Update ECS service to new task
+      - name: Register new task definition
         run: |
-          NEW_TASK_DEF=$(aws ecs list-task-definitions \
-            --family-prefix cicd-demo-task \
-            --status ACTIVE \
-            --sort DESC \
-            --query "taskDefinitionArns[0]" \
+          TASK_DEF_ARN=$(aws ecs register-task-definition \
+            --cli-input-json file://taskdef-final.json \
+            --query 'taskDefinition.taskDefinitionArn' \
             --output text)
 
-          echo "Using task definition: $NEW_TASK_DEF"
+          echo "TASK_DEFINITION=$TASK_DEF_ARN" >> $GITHUB_ENV
 
-          aws ecs update-service \
-            --cluster ${{ env.ECS_CLUSTER }} \
-            --service ${{ env.ECS_SERVICE }} \
-            --task-definition "$NEW_TASK_DEF" \
-            --force-new-deployment
+      - name: Prepare appspec for CodeDeploy
+        run: |
+          sed "s|<TASK_DEFINITION>|$TASK_DEFINITION|" appspec.yml > appspec-final.yml
 
-          echo "Deployment triggered."
+      - name: Create CodeDeploy deployment
+        run: |
+          aws deploy create-deployment \
+            --application-name ${{ env.CODEDEPLOY_APPLICATION }} \
+            --deployment-group-name ${{ env.CODEDEPLOY_DEPLOYMENT_GROUP }} \
+            --revision revisionType=AppSpecContent,appSpecContent="{fileContents:$(cat appspec-final.yml | jq -Rs .)}" \
+            --description "GitHub Actions Blue/Green Deployment $GITHUB_SHA"
