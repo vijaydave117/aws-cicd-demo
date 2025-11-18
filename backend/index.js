@@ -2,7 +2,7 @@ const express = require("express");
 const app = express();
 
 app.get("/", (req, res) => {
-  res.send("Blue/Green Deploy Test ok working fine");
+  res.send("Blue/Green Deploy Test ok working fine 0354");
 });
 
 app.get("/health", (req, res) => res.status(200).send("Healthy"));

@@ -58,15 +58,40 @@ jobs:
         run: |
           sed "s|<TASK_DEFINITION>|$TASK_DEFINITION|" appspec.yml > appspec-final.yml
 
+
       - name: Create CodeDeploy deployment
         run: |
           # Create revision JSON for CodeDeploy
           echo "{\"revisionType\":\"AppSpecContent\",\"appSpecContent\":{\"content\":$(jq -Rs . < appspec-final.yml)}}" > revision.json
-          # Trigger CodeDeploy deployment
+
+          echo "Checking for existing active deployments..."
+
+          # Find active deployment (if any)
+          ACTIVE_DEPLOYMENT=$(aws deploy list-deployments \
+            --application-name ${{ env.CODEDEPLOY_APPLICATION }} \
+            --deployment-group-name ${{ env.CODEDEPLOY_DEPLOYMENT_GROUP }} \
+            --include-only-statuses Created Queued InProgress Ready \
+            --query "deployments[0]" --output text)
+
+          if [ "$ACTIVE_DEPLOYMENT" != "None" ]; then
+              echo "Found active deployment: $ACTIVE_DEPLOYMENT"
+              echo "Waiting for it to finish..."
+
+              # Wait until existing deployment finishes
+              aws deploy wait deployment-successful \
+                --deployment-id $ACTIVE_DEPLOYMENT || \
+              aws deploy wait deployment-failed \
+                --deployment-id $ACTIVE_DEPLOYMENT
+          fi
+
+          echo "No active deployment OR previous one finished. Creating new deployment..."
+
+          # NOW create a new deployment
           aws deploy create-deployment \
             --application-name ${{ env.CODEDEPLOY_APPLICATION }} \
             --deployment-group-name ${{ env.CODEDEPLOY_DEPLOYMENT_GROUP }} \
             --revision file://revision.json \
             --description "GitHub Actions Blue/Green Deployment $GITHUB_SHA"
+
 
         
